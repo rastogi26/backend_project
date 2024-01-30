@@ -65,7 +65,7 @@ userSchema.pre("save", async function (next) {
 });
 
 
-//methods 
+//  METHODS STARTS
 
 //it is used to check the user password is correct or not
 userSchema.methods.isPasswordCorrect = async function(password){
@@ -102,6 +102,6 @@ userSchema.methods.generateRefreshToken = function () {
       }
     );
 }
-
+//  METHODS ENDS
 
 export const User = mongoose.model("User", userSchema);
