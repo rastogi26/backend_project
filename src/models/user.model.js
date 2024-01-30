@@ -1,4 +1,6 @@
-import mongoose, {Schema} from "mongoose";
+import mongoose, { Schema } from "mongoose";
+import jwt from "jsonwebtoken";
+import bycrypt from "bcrypt";
 
 const userSchema = new Schema(
   {
@@ -18,7 +20,7 @@ const userSchema = new Schema(
       lowercase: true,
       trim: true,
     },
-    fullname: {
+    fullName: {
       type: String,
       required: true,
       trim: true,
@@ -47,7 +49,59 @@ const userSchema = new Schema(
     },
   },
   { timestamps: true }
+  //timestamps: true = createdAt and updatedAt
 );
 
-//timestamps: true = createdAt and updatedAt
-export const User = mongoose.model("User",userSchema)
+// pre hook in middleware in mongoose help to do something before saving/validating/remove/updateOne/deleteOne/init the data. For eg in this case encrypt password before saving
+
+//do not use arrow function in this pre hooks because arrow function does not have this context
+userSchema.pre("save", async function (next) {
+  //to solve the problem of ony call password field if it is modified so use if condition
+  if (!this.isModified("password")) {
+    return next();
+  }
+  this.password = bycrypt.hash(this.password, 10);
+  next();
+});
+
+
+//methods 
+
+//it is used to check the user password is correct or not
+userSchema.methods.isPasswordCorrect = async function(password){
+                      // compare takes two argument , 1. password in string and 2. encrypted password
+      return await bycrypt.compare(password,this.password)
+}
+
+userSchema.methods.generateAccessToken = function () {
+   return  jwt.sign(
+      //payload/data
+      {
+        _id: this._id, //coming from database
+        email: this.email, //coming from database
+        username: this.username, //coming from database
+        fullName: this.fullName, //coming from database
+      },
+      process.env.ACCESS_TOKEN_SECRET,
+      {
+        expiresIn: process.env.ACCESS_TOKEN_EXPIRY
+      }
+    );
+}
+
+
+userSchema.methods.generateRefreshToken = function () {
+    return jwt.sign(
+      //payload/data
+      {
+        _id: this._id, //coming from database
+      },
+      process.env.REFRESH_TOKEN_SECRET,
+      {
+        expiresIn: process.env.REFRESH_TOKEN_EXPIRY
+      }
+    );
+}
+
+
+export const User = mongoose.model("User", userSchema);
