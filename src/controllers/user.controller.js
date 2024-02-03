@@ -3,6 +3,7 @@ import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResonse } from "../utils/ApiResponse.js";
+import jwt from "jsonwebtoken";
 
 // generate token start
 const generateAccessTokenAndRefreshToken = async (userId) => {
@@ -12,8 +13,8 @@ const generateAccessTokenAndRefreshToken = async (userId) => {
     const refreshToken = user.generateRefreshToken();
 
     // inserting refresh token in db
-    user.refreshToken = refreshToken; // in user model there is a field called refersh token
-    await user.save({ validateBeforeSave: false }); // done this because in user model like password field is true , save the referesh token without any validation in the db
+    user.refreshToken = refreshToken; // in user model there is a field called refresh token
+    await user.save({ validateBeforeSave: false }); // done this because in user model like password field is true , save the refresh token without any validation in the db
 
     return { accessToken, refreshToken };
   } catch (error) {
@@ -135,7 +136,7 @@ const loginUser = asyncHandler(async (req, res) => {
     // if both are empty
     throw new ApiError(400, "Username and email is required.");
   }
-  
+
   // if (!(username || email)) {
   //   throw new ApiError(400, "Username or email is required.");
   // }
@@ -163,7 +164,7 @@ const loginUser = asyncHandler(async (req, res) => {
   const { accessToken, refreshToken } =
     await generateAccessTokenAndRefreshToken(user._id);
 
-  // we have to update the user because referesh token is inserted , so have two options either update or call function one more time
+  // we have to update the user because refresh token is inserted , so have two options either update or call function one more time
   const loggedInUser = await User.findById(user._id).select(
     "-password -refreshToken"
   );
@@ -221,4 +222,52 @@ const logoutUser = asyncHandler(async (req, res) => {
     .json(new ApiResonse(200, {}, "User logged out successfully"));
 });
 
-export { registerUser, loginUser, logoutUser };
+// making of endpoint for user so that it can gereate a refresh token
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  const incomingRefreshToken =
+    req.cookies.refreshToken || req.body.refreshToken; //kot=yi cookies se bhej raha he ya phir mobile app  se access kar raha he
+
+  if (!incomingRefreshToken) {
+    throw new ApiError(401, "Unauthorized request");
+  }
+
+  try {
+    const decodedToken = jwt.verify(
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET
+    );
+
+    const user = await User.findById(decodedToken?._id);
+
+    if (!user) {
+      throw new ApiError(401, "Invalid refresh token.");
+    }
+
+    // matching the token from user giving incoming and we have saved in user in gereateAccessAndRefreshToken
+    if (incomingRefreshToken !== user?.refreshToken) {
+      throw new ApiError(401, "Refresh token is expired or used");
+    }
+
+    //if token is matched and verified then gerneate new tokens
+    const options = { httpOnly: true, secure: true };
+
+    const { accessToken, newRefreshToken } =
+      await generateAccessTokenAndRefreshToken(user._id); //upar se jo hamne user find kiya tha findById
+
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, options)
+      .cookie("refreshToken", newRefreshToken, options)
+      .json(
+        new ApiResonse(
+          200,
+          { accessToken, refreshToken: newRefreshToken },
+          "Access token refreshed"
+        )
+      );
+  } catch (error) {
+    throw new ApiError(401, error?.message || "Invalid refresh token");
+  }
+});
+
+export { registerUser, loginUser, logoutUser, refreshAccessToken };
