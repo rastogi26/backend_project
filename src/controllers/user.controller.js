@@ -225,7 +225,7 @@ const logoutUser = asyncHandler(async (req, res) => {
 // making of endpoint for user so that it can gereate a refresh token
 const refreshAccessToken = asyncHandler(async (req, res) => {
   const incomingRefreshToken =
-    req.cookies.refreshToken || req.body.refreshToken; //kot=yi cookies se bhej raha he ya phir mobile app  se access kar raha he
+    req.cookies.refreshToken || req.body.refreshToken; //koyi cookies se bhej raha he ya phir mobile app  se access kar raha he
 
   if (!incomingRefreshToken) {
     throw new ApiError(401, "Unauthorized request");
@@ -271,3 +271,5 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
 });
 
 export { registerUser, loginUser, logoutUser, refreshAccessToken };
+
+
