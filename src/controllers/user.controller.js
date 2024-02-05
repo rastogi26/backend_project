@@ -5,6 +5,7 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import { ApiResonse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import { json } from "express";
+import mongoose from "mongoose";
 
 // generate token start
 const generateAccessTokenAndRefreshToken = async (userId) => {
@@ -395,6 +396,144 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     .json(new ApiResonse(200, user, "Cover image updated successfuly"));
 });
 
+const getUserChannelProfile = asyncHandler(async (req, res) => {
+  /* Note we did not use array to store the no. of subscriber are there because imagine that a channel had 1M sub and if one user unsubcribe than it will lead to expensive and time consuming operation so incase we use pipelines and make a separate subscription model */
+
+  const { username } = req.params; // getting user from url not req.body because in youtube the channel profile has a url like /dr
+
+  if (!username?.trim()) {
+    //if username he to optionally trim
+    throw new ApiError(400, "Username is missing");
+  }
+
+  // User.aggregate([{},{}])  //when aggregate pipelines it returns Array
+
+  // Aggregation pipeline
+  const channel = User.aggregate([
+    // ist document
+    {
+      //ist pipeline
+      $match: {
+        username: username?.toLowerCase(),
+      },
+    },
+    {
+      // 2nd pipeline to get subscribers
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "channel", // after getting channels we get subscribers
+        as: "subscribers", //field is created with this name
+      },
+    },
+    {
+      // 3rd pipeline to get a user subscribed to how many channels
+      $lookup: {
+        from: "subscriptions",
+        localField: "_id",
+        foreignField: "subscriber",
+        as: "subscribedTo",
+      },
+    },
+    {
+      //4th pipeline : To add  additional fields that created in above pipeline into user db model
+      $addFields: {
+        subscribersCount: {
+          $size: "$subscribers", // subscribeCount field add hoygi , jo count kari ki kitne documents he $subscribers field ke usko count kardega
+        },
+        channelsSubscribedToCount: {
+          $size: "$subscribedTo",
+        },
+        isSubscribed: {
+          $cond: {
+            if: { $in: [req.user?._id, "$subscribers.subscriber"] },
+            then: true,
+            else: false,
+          },
+        },
+      },
+    },
+    {
+      //5th pipeline: to give selected things
+      $project: {
+        fullName: 1,
+        username: 1,
+        subscribersCount: 1,
+        channelsSubscribedToCount: 1,
+        isSubscribed: 1,
+        avatar: 1,
+        coverImage: 1,
+        email: 1,
+      },
+    },
+  ]);
+
+  // console.log(channel); returns array
+  if (!channel?.length) {
+    throw new ApiError(404, " Channel does not exist");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResonse(200, channel[0], "User channel fetched successfully")); // return Ist object of channel array because we are matching one user
+});
+
+// Users watch history  [user model se watchHistory nikali then find all videos model documents using lookUp but one field owner is not fetched yet so we create a sub pipeline lookup to find the user ]
+const getWatchedHistory = asyncHandler(async (req, res) => {
+  // req.user._id; => we get string important
+
+  // pipeline
+  const user = await User.aggregate([
+    {
+      // pipeline Ist to match/get user
+      $match: {
+        _id: new mongoose.Types.ObjectId(req.user._id),
+      },
+    },
+    {
+      $lookup: {
+        from: "videos",
+        localField: "watchHistory",
+        foreignField: "_id",
+        as: "watchHistory ",
+        pipeline: [
+          //nested pipeline in lookup beacuse uptil now we get the videos but to get the owner field in vidoes we have to make a nested pipeline.
+
+          {
+            // right now we are in videos now where we have to lookup => In users
+            $lookup: {
+              from: "users",
+              localField: "owner",
+              foreignField: "_id",
+              as: "owner", // we get whole user information but not need all of it so we use another pipeline to select particular fields
+              pipeline: [
+                {
+                  $project: {
+                    fullName: 1,
+                    username: 1,
+                    avatar: 1,
+                  },
+                },
+              ],
+            },
+          },
+          // pipeline to make frontend work easier
+          {
+            $addFields: {
+              owner: {
+                //existing field owner override
+                $first: "$owner", //To take out array's first value from owner
+              },
+            },
+          },
+        ],
+      },
+    },
+  ]);
+
+  return res.status(200).json(new ApiResonse(200, user[0].watchHistory,"Watched History fetched successfully")); // only giving watchHistory
+});
+
 export {
   registerUser,
   loginUser,
@@ -405,4 +544,6 @@ export {
   updateAccountDetails,
   updateUserAvatar,
   updateUserCoverImage,
+  getUserChannelProfile,
+  getWatchedHistory,
 };
