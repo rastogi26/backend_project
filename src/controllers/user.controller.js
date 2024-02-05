@@ -276,7 +276,8 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
   const { oldPassword, newPassword } = req.body;
 
   // First  want user so that we can verify the password,  we can get user from auth middleware as he is able to change the password so user is logged in
-  const user = await User.findById(req.user?._id); ///// flagrrect(oldPassword);
+  const user = await User.findById(req.user?._id);
+  const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
 
   if (!isPasswordCorrect) {
     throw new ApiError(400, "Invalid old password");
@@ -295,7 +296,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
 const getCurrentUser = asyncHandler(async (req, res) => {
   return res
     .status(200)
-    .json(200, req.user, "Current user fetched successfully");
+    .json(new ApiResonse(200, req.user, "Current user fetched successfully"));
 });
 
 // update account details
@@ -306,7 +307,6 @@ const updateAccountDetails = asyncHandler(async (req, res) => {
     throw new ApiError(400, "All field are required");
   }
   const user = await User.findByIdAndUpdate(
-    //await flag
     req.user?._id,
     {
       $set: {
@@ -343,7 +343,7 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   }
 
   //update in db
-  const user  = await User.findByIdAndUpdate(
+  const user = await User.findByIdAndUpdate(
     req.user?._id, //optionally wrapped
     {
       $set: {
@@ -353,9 +353,11 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
     { new: true }
   ).select("-password");
 
-    return res
-      .status(200)
-      .json(new ApiResonse(200, user, "Avatar updated successfuly"));
+  // TODO: - delete old image
+
+  return res
+    .status(200)
+    .json(new ApiResonse(200, user, "Avatar updated successfuly"));
 });
 
 // update coverImage
@@ -388,7 +390,9 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     { new: true }
   ).select("-password");
 
-  return res.status(200).json(new ApiResonse(200, user, "Cover image updated successfuly"));
+  return res
+    .status(200)
+    .json(new ApiResonse(200, user, "Cover image updated successfuly"));
 });
 
 export {
