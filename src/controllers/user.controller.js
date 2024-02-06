@@ -201,8 +201,11 @@ const logoutUser = asyncHandler(async (req, res) => {
   await User.findByIdAndUpdate(
     req.user._id,
     {
-      $set: {
-        refreshToken: undefined,
+      // $set: {
+      //   refreshToken: undefined,
+      // },
+      $unset: {
+        refreshToken: 1, //this removes the field from document
       },
     },
     {
@@ -531,7 +534,15 @@ const getWatchedHistory = asyncHandler(async (req, res) => {
     },
   ]);
 
-  return res.status(200).json(new ApiResonse(200, user[0].watchHistory,"Watched History fetched successfully")); // only giving watchHistory
+  return res
+    .status(200)
+    .json(
+      new ApiResonse(
+        200,
+        user[0].watchHistory,
+        "Watched History fetched successfully"
+      )
+    ); // only giving watchHistory
 });
 
 export {
