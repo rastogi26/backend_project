@@ -403,7 +403,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
   /* Note we did not use array to store the no. of subscriber are there because imagine that a channel had 1M sub and if one user unsubcribe than it will lead to expensive and time consuming operation so incase we use pipelines and make a separate subscription model */
 
   const { username } = req.params; // getting user from url not req.body because in youtube the channel profile has a url like /dr
-
+  // console.log(req.params);
   if (!username?.trim()) {
     //if username he to optionally trim
     throw new ApiError(400, "Username is missing");
@@ -412,7 +412,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
   // User.aggregate([{},{}])  //when aggregate pipelines it returns Array
 
   // Aggregation pipeline
-  const channel = User.aggregate([
+  const channel = await User.aggregate([
     // ist document
     {
       //ist pipeline
@@ -471,7 +471,7 @@ const getUserChannelProfile = asyncHandler(async (req, res) => {
     },
   ]);
 
-  // console.log(channel); returns array
+  // console.log("channel is ", channel); //returns array
   if (!channel?.length) {
     throw new ApiError(404, " Channel does not exist");
   }
