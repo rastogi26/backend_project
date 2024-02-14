@@ -15,3 +15,6 @@ router
   .route("/:tweetId")
   .patch(verifyJWT, updateTweet)
   .delete(verifyJWT, deleteTweet);
+
+
+  export default router;
