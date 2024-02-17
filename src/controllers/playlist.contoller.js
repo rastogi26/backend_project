@@ -75,7 +75,7 @@ const getUserPlaylists = asyncHandler(async (req, res) => {
     );
 });
 
-//confusion
+//flag
 const getPlaylistById = asyncHandler(async (req, res) => {
   const { playlistId } = req.params;
 
@@ -109,7 +109,7 @@ const getPlaylistById = asyncHandler(async (req, res) => {
   }
 });
 
-//confusion
+//flag
 const addVideoToPlaylist = asyncHandler(async (req, res) => {
   const { playlistId, videoId } = req.params;
 
@@ -153,21 +153,121 @@ const addVideoToPlaylist = asyncHandler(async (req, res) => {
     );
 });
 
+//flag
 const removeVideoFromPlaylist = asyncHandler(async (req, res) => {
   const { playlistId, videoId } = req.params;
- 
+
+  if (!isValidObjectId(playlistId) || !isValidObjectId(videoId)) {
+    throw new ApiError(400, "Invalid PlaylistId or videoId");
+  }
+
+  const updatedPlaylist = await Playlist.findOneAndUpdate(
+    // Find the playlist by its ID and verify ownership in one query
+    {
+      _id: playlistId,
+      owner:req.user?._id
+,
+    },
+    // Remove the video from the playlist if the playlist and video exist and the user is the owner
+    {
+      $pull: { videos: videoId },
+    },
+    // Options to return the updated document after the update operation
+    {
+      new: true,
+      // Ensure that the findOneAndUpdate method returns the document before applying validators
+      runValidators: true,
+    }
+  );
+
+  if (!updatedPlaylist) {
+    throw new ApiError(
+      404,
+      "Playlist not found or only the owner can remove videos from their playlist"
+    );
+  }
+
+  return res
+    .status(200)
+    .json(
+      new ApiResonse(
+        200,
+        updatedPlaylist,
+        "Removed video from playlist successfully"
+      )
+    );
 });
 
+//flag
 const deletePlaylist = asyncHandler(async (req, res) => {
   const { playlistId } = req.params;
 
+  if (!isValidObjectId(playlistId)) {
+    throw new ApiError(400, "Invalid PlaylistId");
+  }
+
+  const playlist = await Playlist.findOneAndDelete({
+    _id: playlistId,
+    owner: req.user?._id,
+  });
+
+  if (!playlist) {
+    throw new ApiError(
+      404,
+      "Playlist not found or only the owner can delete the playlist"
+    );
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResonse(200, {}, "Playlist deleted successfully"));
 });
 
+//flag
 const updatePlaylist = asyncHandler(async (req, res) => {
-  const { playlistId } = req.params;
   const { name, description } = req.body;
-  
+  const { playlistId } = req.params;
+
+  if (!name || !description) {
+    throw new ApiError(400, "Name and description are required");
+  }
+
+  if (!isValidObjectId(playlistId)) {
+    throw new ApiError(400, "Invalid PlaylistId");
+  }
+
+  const updatedPlaylist = await Playlist.findOneAndUpdate(
+    // Find the playlist by its ID and verify ownership in one query
+    {
+      _id: playlistId,
+      owner: req.user?._id,
+    },
+    // Update the playlist's name and description if the playlist exists and the user is the owner
+    {
+      $set: { name, description },
+    },
+    // Options to return the updated document after the update operation
+    {
+      new: true,
+      // Ensure that the findOneAndUpdate method returns the document before applying validators
+      runValidators: true,
+    }
+  );
+
+  if (!updatedPlaylist) {
+    throw new ApiError(
+      404,
+      "Playlist not found or only the owner can edit the playlist"
+    );
+  }
+
+  return res
+    .status(200)
+    .json(
+      new ApiResonse(200, updatedPlaylist, "Playlist updated successfully")
+    );
 });
+
 
 export {
   createPlaylist,
